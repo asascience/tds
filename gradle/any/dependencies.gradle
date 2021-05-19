@@ -6,21 +6,21 @@
 repositories {
     // When running one version of the netcdf-java tests on travis, we want to test the TDS against the changes
     // proposed by a netCDF-Java PR. In order to do this, we need to publish snapshot artifacts of netcdf-java to
-    // the local maven repository and build the TDS with those. In the netCDF-java travis build script, 
+    // the local maven repository and build the TDS with those. In the netCDF-java travis build script,
     // we use sed to uncomment the following line so that the tds build uses those local snapshot artifacts in its
     // build.
-    //mavenLocal()
-    
+    mavenLocal()
+
     // Prefer JCenter to Maven Central. See
     // https://blog.bintray.com/2015/02/09/android-studio-migration-from-maven-central-to-jcenter/
     jcenter()
     mavenCentral()  // JCenter isn't quite a superset of Maven Central.
-    
+
     // All of the hosted repositories below could be replaced with:
     //     url "https://artifacts.unidata.ucar.edu/repository/unidata-all/"
     // which is a group repository that contains all other repositories. However, I prefer to list all source
     // repos explicitly so that we know where all artifacts ultimately come from.
-    
+
     // Hosted release repositories.
     maven {
         // For "threddsIso", "visad" and "jj2000".
@@ -35,7 +35,7 @@ repositories {
         // still use. We should really try to eliminate our use of it.
         url "https://artifacts.unidata.ucar.edu/repository/unidata-3rdparty/"
     }
-    
+
     // Third-party repositories.
     maven {
         url "https://dl.bintray.com/cwardgar/maven/"  // For "gretty".
@@ -76,24 +76,24 @@ libraries["spotless"] = "com.diffplug.spotless:spotless-plugin-gradle:3.22.0"
 
 // NOTE: If updating to a new major or minor version of netcdf-java, be sure to update
 // the netcdf-java_docset_version variable in docs/src/public/userguide/_config.yml."
-versions["ncj"] = "5.4.0-SNAPSHOT"
+versions["ncj"] = "5.4.1-RPS"
 
-libraries["bufr"] = "edu.ucar:bufr:${versions["ncj"]}"
-libraries["cdm-core"] = "edu.ucar:cdm-core:${versions["ncj"]}"
-libraries["cdm-radial"] = "edu.ucar:cdm-radial:${versions["ncj"]}"
-libraries["cdm-misc"] = "edu.ucar:cdm-misc:${versions["ncj"]}"
-libraries["cdm-image"] = "edu.ucar:cdm-image:${versions["ncj"]}"
-libraries["cdm-mcidas"] = "edu.ucar:cdm-mcidas:${versions["ncj"]}"
-libraries["cdm-s3"] = "edu.ucar:cdm-s3:${versions["ncj"]}"
-libraries["grib"] = "edu.ucar:grib:${versions["ncj"]}"
-libraries["httpservices"] = "edu.ucar:httpservices:${versions["ncj"]}"
-libraries["netcdf4"] = "edu.ucar:netcdf4:${versions["ncj"]}"
-libraries["opendap"] = "edu.ucar:opendap:${versions["ncj"]}"
-libraries["waterml"] = "edu.ucar:waterml:${versions["ncj"]}"
-libraries["d4cdm"] = "edu.ucar:d4cdm:${versions["ncj"]}"
-libraries["d4servlet"] = "edu.ucar:d4servlet:${versions["ncj"]}"
-libraries["d4core"] = "edu.ucar:d4core:${versions["ncj"]}"
-libraries["d4lib"] = "edu.ucar:d4lib:${versions["ncj"]}"
+libraries["bufr"] = "com.rpsgroup:bufr:${versions["ncj"]}"
+libraries["cdm-core"] = "com.rpsgroup:cdm-core:${versions["ncj"]}"
+libraries["cdm-radial"] = "com.rpsgroup:cdm-radial:${versions["ncj"]}"
+libraries["cdm-misc"] = "com.rpsgroup:cdm-misc:${versions["ncj"]}"
+libraries["cdm-image"] = "com.rpsgroup:cdm-image:${versions["ncj"]}"
+libraries["cdm-mcidas"] = "com.rpsgroup:cdm-mcidas:${versions["ncj"]}"
+libraries["cdm-s3"] = "com.rpsgroup:cdm-s3:${versions["ncj"]}"
+libraries["grib"] = "com.rpsgroup:grib:${versions["ncj"]}"
+libraries["httpservices"] = "com.rpsgroup:httpservices:${versions["ncj"]}"
+libraries["netcdf4"] = "com.rpsgroup:netcdf4:${versions["ncj"]}"
+libraries["opendap"] = "com.rpsgroup:opendap:${versions["ncj"]}"
+libraries["waterml"] = "com.rpsgroup:waterml:${versions["ncj"]}"
+libraries["d4cdm"] = "com.rpsgroup:d4cdm:${versions["ncj"]}"
+libraries["d4servlet"] = "com.rpsgroup:d4servlet:${versions["ncj"]}"
+libraries["d4core"] = "com.rpsgroup:d4core:${versions["ncj"]}"
+libraries["d4lib"] = "com.rpsgroup:d4lib:${versions["ncj"]}"
 
 ////////////////////////////////////////// Spring //////////////////////////////////////////
 
@@ -378,7 +378,7 @@ configurations.all {
             }
         }
     }
-    
+
     // STAX is already included in Java 1.6+; no need for a third-party depenency.
     /*
         ./gradlew -q tds:dependencyInsight --configuration runtime --dependency stax-api
@@ -390,7 +390,7 @@ configurations.all {
                   ...
      */
     exclude group: 'stax', module: 'stax-api'
-    
+
     // Another SLF4J binding that we don't want.
     /*
         ./gradlew -q tds:dependencyInsight --configuration runtime --dependency slf4j-log4j12
