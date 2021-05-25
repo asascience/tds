@@ -3,12 +3,10 @@
 // So we have to repeat ourselves. See the root project's build script for more notes on buildscript {} block weirdness.
 buildscript {
     apply from: "$rootDir/gradle/any/dependencies.gradle"
-    
+
     repositories {
         jcenter()
-        maven {
-            url "https://dl.bintray.com/cwardgar/maven/"  // For 'com.cwardgar.gretty:gretty-fork'.
-        }
+        mavenLocal()
     }
     dependencies {
         classpath libraries["gretty"]  // We want to import GradleUtils and AppStartTask.
@@ -24,10 +22,10 @@ import org.akhikhl.gretty.AppBeforeIntegrationTestTask
 
 gretty {
     servletContainer = 'tomcat8'  // All webapps run on Tomcat 8.
-    
+
     // Pass filtered system properties to the embedded Tomcat that Gretty will launch.
     systemProperties addFilteredSysProps([:])
-    
+
     // We want to modify Gretty tasks but they won't be added to the project until after evaluation:
     // http://goo.gl/qlFXTD. So, our modifications must also occur after evaluation.
     afterEvaluate {
@@ -41,22 +39,22 @@ gretty {
             it.doFirst {
                 // tomcatBaseDir is the working directory for embedded tomcat. We want to write our logs there as well.
                 File tomcatBaseDir = it.launcherConfig.baseDir
-    
+
                 // Will be something like: "$projectDir/build/serverBaseDir_tomcat8/logs".
                 it.logDir = file("$tomcatBaseDir/logs").absolutePath
             }
         }
-        
+
         // Write separate Jacoco execution data for the client and server components of the integration test.
         if (project.extensions.findByName('jacoco')) {  // Is the Jacoco plugin applied to the project?
             tasks.matching { GradleUtils.instanceOf(it, AppBeforeIntegrationTestTask.name) }.each {
                 def integTestTaskName = it.integrationTestTask
                 Task integTestTask = tasks.findByName(integTestTaskName)
-                
+
                 if (integTestTask) {  // Integration task exists.
                     // Report on the AppBeforeIntegrationTestTask and integTestTask.
                     tasks.jacocoTestReport.executionData it, integTestTask
-                    
+
                     // "jacoco" extension will be applied to these tasks if the Jacoco plugin is applied to the project.
                     it.jacoco.destinationFile = file("$buildDir/jacoco/${integTestTaskName}_server.exec")
                     integTestTask.jacoco.destinationFile = file("$buildDir/jacoco/${integTestTaskName}_client.exec")
@@ -76,15 +74,15 @@ gretty {
  */
 void overlayAndApplyConfigOf(String projectPath) {
     Project proj = rootProject.project(projectPath)
-    
+
     // Need to evaluate proj first so that the 'grettyConfig' property is available.
     evaluationDependsOn proj.path
-    
+
     gretty proj.grettyConfig
-    
+
     // See http://akhikhl.github.io/gretty-doc/Web-app-overlays.html
     gretty.overlay projectPath
-    
+
     gretty.afterEvaluate {
         // Remove the 'assemble' task's dependency on 'overlayArchive', which was established in
         // GrettyPlugin.addTasks() (see https://goo.gl/cJYmuU). Essentially, 'overlayArchive' modifies the archive

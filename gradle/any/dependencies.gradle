@@ -36,10 +36,8 @@ repositories {
         url "https://artifacts.unidata.ucar.edu/repository/unidata-3rdparty/"
     }
 
-    // Third-party repositories.
-    maven {
-        url "https://dl.bintray.com/cwardgar/maven/"  // For "gretty".
-    }
+    // Prerequisite: you must build and publish Unidata/gretty to local maven cache
+    mavenLocal()
 
     // edal-java SNAPSHOTS
     //maven {
