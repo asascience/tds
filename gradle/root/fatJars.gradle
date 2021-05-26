@@ -35,7 +35,7 @@ def fatJarTasks = []
 fatJarTasks << tasks.create(name: 'buildTdmFat', type: ShadowJar) {
     baseName = 'tdmFat'
     configurations = [project.configurations.tdmFat]
-    
+
     doFirst {
         manifest.attributes project(':tdm').tasks.jar.manifest.attributes
     }
@@ -45,17 +45,21 @@ fatJarTasks << tasks.create(name: 'buildTdmFat', type: ShadowJar) {
 fatJarTasks << tasks.create(name: 'buildD4TS', type: ShadowJar) {
     baseName = 'd4ts'
     configurations = [project.configurations.d4ts]
-    
+
     doFirst {
         manifest.attributes project(':dap4:d4ts').tasks.jar.manifest.attributes
     }
+}
+
+tasks.create(name: 'buildTds', type: War) {
+    baseName = 'tds'
 }
 
 // Common configuration.
 configure(fatJarTasks) {
     dependsOn configurations*.buildDependencies
     group = "shadow"
-    
+
     // Filter out crap from various other packages.
     exclude 'AUTHORS'
     exclude 'DATE'
@@ -72,16 +76,11 @@ configure(fatJarTasks) {
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.txt'
     exclude 'META-INF/*.xml'
-    
+
     // Transformations
     append('META-INF/spring.handlers')
     append('META-INF/spring.schemas')
     mergeServiceFiles()
-}
-
-// Exclude *.xml files from all fat jars except tdmFat; we need tdm's log4j2.xml to be included.
-configure(fatJarTasks - buildTdmFat) {
-    exclude '*.xml'
 }
 
 // Exclude *.xml files from all fat jars except tdmFat; we need tdm's log4j2.xml to be included.
@@ -96,4 +95,5 @@ apply plugin: 'base'
 artifacts {
     archives buildTdmFat
     archives buildD4TS
+    archives buildTds
 }

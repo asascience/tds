@@ -45,6 +45,11 @@ publishing {
                 asNode().append PublishingUtil.createDependencyManagement(pubsToUseForBom)
             }
         }
+
+        mavenWar(MavenPublication) {
+            artifactId 'thredds-data-server'
+            artifact(file('tds/build/libs/tds-5.0.0-beta8-RPS_b001.war'))
+        }
     }
 }
 

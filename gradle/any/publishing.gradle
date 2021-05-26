@@ -23,8 +23,8 @@ publishing {
         //     }
         // }
         maven {
-            url 'https://pkgs.dev.azure.com/RPSGroupApps/IOOS-TDS/_packaging/bhall-testfeed/maven/v1'
-            name 'bhall-testfeed'
+            url 'https://pkgs.dev.azure.com/RPSGroupApps/IOOS-TDS/_packaging/tds/maven/v1'
+            name 'tds'
             authentication {
                 basic(BasicAuthentication)
             }
