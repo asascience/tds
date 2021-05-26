@@ -9,6 +9,8 @@ repositories {
     // the local maven repository and build the TDS with those. In the netCDF-java travis build script,
     // we use sed to uncomment the following line so that the tds build uses those local snapshot artifacts in its
     // build.
+    //
+    // Prerequisite: you must build and publish Unidata/gretty to local maven cache
     mavenLocal()
 
     // Prefer JCenter to Maven Central. See
@@ -35,9 +37,6 @@ repositories {
         // still use. We should really try to eliminate our use of it.
         url "https://artifacts.unidata.ucar.edu/repository/unidata-3rdparty/"
     }
-
-    // Prerequisite: you must build and publish Unidata/gretty to local maven cache
-    mavenLocal()
 
     // edal-java SNAPSHOTS
     //maven {
@@ -69,6 +68,9 @@ libraries["license-gradle-plugin"] = "gradle.plugin.nl.javadude.gradle.plugins:l
 libraries["jruby-gradle-plugin"] = "com.github.jruby-gradle:jruby-gradle-plugin:1.5.0"
 
 libraries["spotless"] = "com.diffplug.spotless:spotless-plugin-gradle:3.22.0"
+
+// Required to read ~/.m2/settings.xml to get creds for Azure Artifacts
+libraries["maven-settings"] = "net.linguica.gradle:maven-settings-plugin:0.5"
 
 /////////////////////////////////////// netCDF-Java ////////////////////////////////////////
 

@@ -16,8 +16,15 @@ buildscript {
         maven {
             url "https://plugins.gradle.org/m2/"  // For Gradle plugins.
         }
+
         // Prerequisite: you must build and publish Unidata/gretty to local maven cache
         mavenLocal()
+
+        // Azure Artifacts
+        maven {
+            url 'https://pkgs.dev.azure.com/RPSGroupApps/IOOS-TDS/_packaging/bhall-testfeed/maven/v1'
+            name 'bhall-testfeed'
+        }
     }
 
     dependencies {
@@ -32,13 +39,18 @@ buildscript {
     }
 }
 
+plugins {
+    // Required for reading Azure Artifacts creds from ~/.m2/settings.xml
+    id "net.linguica.maven-settings" version "0.5"
+}
+
 allprojects {
     // Matches Maven's "project.groupId". Used in MANIFEST.MF for "Implementation-Vendor-Id".
     group = "com.rpsgroup"
     // Matches Maven's "project.version". Used in MANIFEST.MF for "Implementation-Version".
     // We try to follow semantic versioning, and thus we use <major>.<minor>.<patch>-<prerelease version>
     // <prerelease version> may be SNAPSHOT, alphax, betax, etc.
-    version = '5.0.0-beta8-RPS'
+    version = '5.0.0-beta8-RPS_how-bout-another-test'
     // Eventually, we'll stop appending "SNAPSHOT" to our versions and just use this.
     status = 'release'
 }
@@ -58,7 +70,7 @@ ext {
     title = "Parent THREDDS and CDM modules"
 
     // Matches Maven's "project.organization.name". Used in MANIFEST.MF for "Implementation-Vendor".
-    vendor = "UCAR/Unidata"
+    vendor = "RPS Group"
 
     // It makes sense to publish major.minor versions of the docs, as
     // any patch bumps should be backwards compatible bug fixes only
