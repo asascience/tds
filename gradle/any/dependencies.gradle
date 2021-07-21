@@ -312,7 +312,7 @@ libraries["gwt-user"] =  "com.google.gwt:gwt-user:${versions["gwt"]}"
 
 libraries["gwt-dev"] = "com.google.gwt:gwt-dev:${versions["gwt"]}"
 
-libraries["threddsIso"] = "com.rpsgroup:threddsIso:2.4.0-RPS"
+libraries["threddsIso"] = "EDS:threddsIso:2.4.0-SNAPSHOT@jar"
 
 libraries["Saxon-HE"] = "net.sf.saxon:Saxon-HE:9.7.0-8"
 
