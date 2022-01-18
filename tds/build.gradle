@@ -1,184 +1,168 @@
-import edu.ucar.build.ui.ToolsUiJnlpBaseTask
-import com.google.common.collect.Iterables
+import javax.xml.transform.TransformerFactory
 
-description = "The THREDDS Data Server (TDS) is a web server that provides catalog and data access services for " +
-              "scientific data using OPeNDAP, OGC WCS and WMS, HTTP, and other remote-data-access protocols."
-ext.title = "THREDDS Data Server (TDS)"
-ext.url = "https://www.unidata.ucar.edu/software/thredds/current/tds/TDS.html"
+description = 'The THREDDS Data Server (TDS) is a web server that provides catalog and data access services for ' +
+              'scientific data using OPeNDAP, OGC WCS and WMS, HTTP, and other remote-data-access protocols.'
+ext.title = 'THREDDS Data Server (TDS)'
+ext.url = 'https://www.unidata.ucar.edu/software/tds/'
 
 apply from: "$rootDir/gradle/any/dependencies.gradle"
-apply from: "$rootDir/gradle/any/java.gradle"
-apply from: "$rootDir/gradle/any/testing.gradle"
-apply from: "$rootDir/gradle/any/coverage.gradle"
-apply from: "$rootDir/gradle/any/archiving.gradle"
-apply from: "$rootDir/gradle/any/publishing.gradle"
+apply from: "$rootDir/gradle/any/war-published.gradle"
 apply from: "$rootDir/gradle/any/gretty.gradle"
-
-apply plugin: 'war'
+apply plugin: 'groovy'  // For FreshInstall Spock tests.
 
 dependencies {
-    compile libraries["bufr"]
-    compile libraries["cdm-core"]
-    compile libraries["cdm-radial"]
-    compile libraries["cdm-misc"]
-    compile libraries["cdm-image"]
-    compile libraries["cdm-s3"]
-    compile libraries["grib"]
-    compile libraries["httpservices"]
-    compile libraries["netcdf4"]
-    compile libraries["opendap"]
-    compile project(":opendap:server")
-    compile project(":tdcommon")
-    compile libraries["cdm-mcidas"]
-    compile libraries["waterml"]
+  implementation enforcedPlatform (project(':tds-platform'))
+  testCompile enforcedPlatform (project(':tds-testing-platform'))
 
-    // DAP4 Dependencies (technically forward)
-    compile libraries["d4cdm"]
-    compile project(":dap4:d4servlet")
-    compile libraries["d4core"]
-    compile libraries["d4lib"]
+  compile 'edu.ucar:bufr'
+  compile 'edu.ucar:cdm-core'
+  compile 'edu.ucar:cdm-radial'
+  compile 'edu.ucar:cdm-misc'
+  compile 'edu.ucar:cdm-image'
+  compile 'edu.ucar:cdm-s3'
+  compile 'edu.ucar:grib'
+  compile 'edu.ucar:netcdf4'
+  compile 'edu.ucar:httpservices'
+  compile 'edu.ucar:opendap'
+  compile project(':opendap:opendap-servlet')
+  compile project(':tdcommon')
+  compile 'edu.ucar:cdm-mcidas'
+  compile 'edu.ucar:waterml'
 
-    // Server stuff
-    compileOnly libraries["javax.servlet-api"]
-    runtime libraries["taglibs-standard-spec"]
-    runtime libraries["taglibs-standard-impl"]
+  // DAP4 Dependencies (technically forward)
+  compile 'edu.ucar:d4cdm'
+  compile 'edu.ucar:d4core'
+  compile 'edu.ucar:d4lib'
 
-    // Apache httpclient libraries
-    compile libraries["httpclient"]
-    compile libraries["httpcore"]
+  compile project(':dap4:dap4-servlet')
 
-    compile libraries["coverity-escapers"]
-    compile libraries["jdom2"]
-    compile libraries["quartz"]
-    compile libraries["jsr305"]
-    compile libraries["guava"]
-    compile libraries["joda-time"]
+  // Server stuff
+  providedCompile "javax.servlet:javax.servlet-api:${depVersion.javaxServletApi}"
+  runtime 'org.apache.taglibs:taglibs-standard-spec'
+  runtime 'org.apache.taglibs:taglibs-standard-impl'
 
-    // WaterML
-    compile libraries["52n-xml-waterML-v20"]
-    compile libraries["52n-xml-om-v20"]
-    compile libraries["xmlbeans"]
+  // Apache httpclient libraries
+  compile 'org.apache.httpcomponents:httpclient'
+  compile 'org.apache.httpcomponents:httpcore'
 
-    // Spring
-    compile libraries["spring-core"]
-    compile libraries["spring-context"]
-    compile libraries["spring-beans"]
-    compile libraries["spring-web"]
-    compile libraries["spring-webmvc"]
+  compile 'com.coverity.security:coverity-escapers' // todo: replace with google escapers?
+  compile 'org.jdom:jdom2'
+  compile 'org.quartz-scheduler:quartz'
+  compile 'com.google.code.findbugs:jsr305'
+  compile 'com.google.guava:guava'
+  compile 'joda-time:joda-time'
 
-    runtime libraries["spring-security-web"]     // Needed for FilterChainProxy in applicationContext.xml.
-    runtime libraries["spring-security-config"]  // Needed for "xmlns:security" schema in applicationContext.xml.
+  // WaterML
+  compile 'org.apache.xmlbeans:xmlbeans'
+  compile 'org.n52.sensorweb:52n-xml-waterML-v20'
+  compile 'org.n52.sensorweb:52n-xml-om-v20'
 
-    compile libraries["oro"]
+  // Spring
+  compile 'org.springframework:spring-core'
+  compile 'org.springframework:spring-context'
+  compile 'org.springframework:spring-beans'
+  compile 'org.springframework:spring-web'
+  compile 'org.springframework:spring-webmvc'
+  runtime 'org.springframework.security:spring-security-web'     // Needed for FilterChainProxy in applicationContext.xml.
+  runtime 'org.springframework.security:spring-security-config'  // Needed for "xmlns:security" schema in applicationContext.xml.
 
-    // Needed for XPath operations in mock tests
-    testCompile libraries["jaxen"]
+  // Needed for XPath operations in mock tests
+  testCompile 'jaxen:jaxen'
 
-    // edal ncwms related libs
-    compile libraries["ehcache"]
-    compile libraries["edal-common"]
-    compile libraries["edal-cdm"]
-    compile libraries["edal-graphics"]
-    compile libraries["edal-wms"]
-    compile libraries["edal-godiva"]
+  // edal ncwms related libs
+  compile('uk.ac.rdg.resc:edal-common')
+  compile ('uk.ac.rdg.resc:edal-cdm')
+  compile ('uk.ac.rdg.resc:edal-graphics')
+  compile ('uk.ac.rdg.resc:edal-wms')
+  compile('uk.ac.rdg.resc:edal-godiva')
 
-    // threddsIso related libs
-    runtime libraries["threddsIso"]
+  // threddsIso related libs
+  runtime 'EDS:tds-plugin'
+  runtime 'net.sf.saxon:Saxon-HE'
+  runtime 'jaxen:jaxen'
 
-    runtime libraries["Saxon-HE"]
-    runtime libraries["jaxen"]
+  // json writing
+  'org.json:json'
 
-    // json writing
-    libraries["json"]
+  // JSR 303 with Hibernate Validator, which is dragging in jboss logging
+  compile 'javax.validation:validation-api'
+  runtime 'org.hibernate.validator:hibernate-validator'
+  runtime 'javax.el:javax.el-api'
+  runtime 'org.glassfish:javax.el'
+  annotationProcessor "org.hibernate.validator:hibernate-validator-annotation-processor:${depVersion.hibernateValidator}"
 
-    // JSR 303 with Hibernate Validator, which is dragging in jboss logging
-    compile libraries["validation-api"]
-    runtime libraries["hibernate-validator"]
-    runtime libraries["javax-el"]
-    runtime libraries["glassfish-javax-el"]
+  // @Resource annotation (removed post Java 8)
+  compile 'javax.annotation:javax.annotation-api'
 
-    compile libraries["thymeleaf-spring5"]
+  compile 'org.thymeleaf:thymeleaf-spring5'
 
-    // Testing
-    testCompile libraries["javax.servlet-api"]
-    testCompile libraries["spring-test"]
-    testCompile libraries["hamcrest-core"]
-    testCompile libraries["commons-io"]
-    testCompile libraries["JUnitParams"]
-    testCompile libraries["truth"]
+  // Testing
+  testCompile "javax.servlet:javax.servlet-api:${depVersion.javaxServletApi}"
+  testCompile 'org.springframework:spring-test'
+  testCompile 'org.hamcrest:hamcrest-core'
+  testCompile 'commons-io:commons-io'
+  testCompile 'pl.pragmatists:JUnitParams'
+  testCompile 'com.google.truth:truth'
+  testCompile 'junit:junit'
+  testCompile project(':tds-test-utils');
+  testCompile 'edu.ucar:cdm-test-utils'  // Contains stuff like the JUnit @Category classes.
 
-    // Logging
-    compile libraries["slf4j-api"]
-    runtime libraries["log4j-slf4j-impl"]
-    runtime libraries["log4j-web"]
-    testRuntime libraries["logback-classic"]
+  // Logging
+  compile 'org.slf4j:slf4j-api'
+  runtime 'org.apache.logging.log4j:log4j-slf4j-impl'
+  runtime 'org.apache.logging.log4j:log4j-web'
+  testRuntime 'ch.qos.logback:logback-classic'
+
+  // These are for freshInstallTest (first two because it uses Spock).
+  testCompile 'org.spockframework:spock-core'
+  testCompile 'org.codehaus.groovy:groovy-all'
+  testCompile 'org.xmlunit:xmlunit-core'  // For comparing catalog XML.
 }
 
 // "testRuntime" extends from "runtime", meaning that "testRuntime" will get the log4j dependencies declared in
 // "runtime". However, we want logback-classic to be the logger during tests, so exclude all of the log4j stuff.
 configurations.testRuntime {
-    exclude group: "org.apache.logging.log4j"
+  exclude group: 'org.apache.logging.log4j'
 }
 
-// Adds ':tds:prepareInplaceWebAppClasses', which ':it:integrationTest' depends on.
-apply plugin: 'org.akhikhl.gretty'
-
-test {
-    // From TDS's pom.xml. I guess these are excluded because they're pretty crufty?
-    exclude 'thredds/tds/**'
+task copyWebappFilesForTests(type: Copy) {
+  // Tests expect for certain webapp files to be accessible from the classpath (e.g. WEB-INF/applicationContext.xml).
+  from 'src/main/webapp'
+  from 'src/main/webapp/WEB-INF/classes'
+  into sourceSets.test.java.outputDir
 }
 
 processTestResources {
-    from "src/main/webapp"
-    from "src/main/webapp/WEB-INF/classes"
-    
-    // Tests expect for test resources to be copied to the same directory as the test classes.
-    destinationDir = compileTestJava.destinationDir
+  dependsOn copyWebappFilesForTests
 }
 
 war {
-    // Assert that no servlet-api JAR is slated for inclusion in the WAR.
-    doFirst {
-        File servletApiJar = classpath.find { it.name.contains("servlet-api") }
-        if (servletApiJar) {
-            // This will fail the build.
-            throw new GradleException("Found a servlet-api JAR in the WAR classpath: ${servletApiJar.name}")
-        }
+  // Assert that no servlet-api JAR is slated for inclusion in the WAR.
+  doFirst {
+    File servletApiJar = classpath.find { it.name.contains('servlet-api') }
+    if (servletApiJar) {
+      // This will fail the build.
+      throw new GradleException("Found a servlet-api JAR in the WAR classpath: ${servletApiJar.name}")
     }
+  }
 
-    // Replace '$projectVersion' and '$buildTimestamp' placeholders with the correct values.
-    // Currently, we only use those placeholders in tds.properties and README.txt.
-    def properties = [:]
-    properties['projectVersion'] = project.version
-    properties['buildTimestamp'] = project.buildTimestamp  // Defined in root project.
+  // Replace '$projectVersion' and '$buildTimestamp' placeholders with the correct values.
+  // Currently, we only use those placeholders in tds.properties and README.txt.
+  def properties = [:]
+  properties['projectVersion'] = project.version
+  properties['buildTimestamp'] = project.buildTimestamp  // Defined in root project.
 
-    // War CopySpec already includes everything in 'src/main/webapp', which tds.properties lives within.
-    // So, the from() and into() methods aren't needed.
-    filesMatching('**/tds.properties') {
-        expand properties
-    }
+  // War CopySpec already includes everything in 'src/main/webapp', which tds.properties lives within.
+  // So, the from() and into() methods aren't needed.
+  filesMatching('**/tds.properties') {
+    expand properties
+  }
 
-    from('README.txt') {
-        into 'docs'
-        expand properties
-    }
+  from('README.txt') {
+    into 'docs'
+    expand properties
+  }
 }
-
-// This will be used by both :tds and :it.
-ext.grettyConfig = {
-    httpPort = 8081
-    contextPath = '/thredds'
-
-    File testResourcesDir = Iterables.getOnlyElement(sourceSets.test.resources.srcDirs)
-
-    // These enable HTTPS authentication, which is needed to access the TDS admin interface.
-    httpsEnabled = true
-    sslKeyStorePath = "$testResourcesDir/auth/keystore"
-    sslKeyStorePassword = 'secret666'
-    realmConfigFile = "$testResourcesDir/auth/tomcat-users.xml"
-}
-
-gretty grettyConfig
 
 ////////////////////////////////////// Godiva 3 //////////////////////////////////////
 
@@ -194,52 +178,159 @@ gretty grettyConfig
 // Even worse, the JARs are *huge*, and inflated the size of tds.war by ~59 MB.
 
 configurations {
-    gwt
+  gwt
 }
 
 dependencies {
-    // These are needed by the compileGwt task but nowhere else, which is why we place them in their own config.
-    gwt libraries["gwt-user"]
-    gwt libraries["gwt-dev"]
+  // These are needed by the compileGwt task but nowhere else, which is why we place them in their own config.
+  gwt "com.google.gwt:gwt-user:${depVersion.gwt}"
+  gwt "com.google.gwt:gwt-dev:${depVersion.gwt}"
 }
 
 ext {
-    gwtDir = "${project.buildDir}/gwt"
-    extraDir = "${project.buildDir}/extra"
+  gwtDir = "${project.buildDir}/gwt"
+  extraDir = "${project.buildDir}/extra"
 }
 
 task compileGwt (dependsOn: classes, type: JavaExec) {
-    inputs.file(sourceSets.main.java.srcDirs).skipWhenEmpty()
-    inputs.dir sourceSets.main.output.resourcesDir
-    outputs.dir gwtDir
+  inputs.files(sourceSets.main.java.srcDirs).skipWhenEmpty()
+  inputs.dir sourceSets.main.output.resourcesDir
+  outputs.dir gwtDir
 
-    doFirst {
-        file(gwtDir).mkdirs()
-    }
+  doFirst {
+    file(gwtDir).mkdirs()
+  }
 
-    main = 'com.google.gwt.dev.Compiler'
+  main = 'com.google.gwt.dev.Compiler'
 
-    classpath {
-        [
-            configurations.gwt,                // For com.google.gwt.dev.Compiler in "gwt-dev".
-            sourceSets.main.compileClasspath,  // For 'uk/ac/rdg/resc/godiva/Godiva.gwt.xml' in "edal-java".
-            sourceSets.main.resources.srcDirs  // For Godiva3.gwt.xml in 'tds/src/main/resources'.
-        ]
-    }
-
-    args = [
-        'Godiva3', // The GWT module, from edal-godiva.
-        '-war', gwtDir,
-        '-logLevel', 'WARN',  // Only get log messages at level WARN or above. We don't want the spammy output.
-        '-localWorkers', '2',
-        '-compileReport',
-        '-extra', extraDir,
+  classpath {
+    [
+        configurations.gwt,                // For com.google.gwt.dev.Compiler in "gwt-dev".
+        sourceSets.main.compileClasspath,  // For 'uk/ac/rdg/resc/godiva/Godiva.gwt.xml' in "edal-java".
+        sourceSets.main.resources.srcDirs  // For Godiva3.gwt.xml in 'tds/src/main/resources'.
     ]
+  }
 
-    maxHeapSize = '256M'
+  args = [
+      'Godiva3', // The GWT module, from edal-godiva.
+      '-war', gwtDir,
+      '-logLevel', 'WARN',  // Only get log messages at level WARN or above. We don't want the spammy output.
+      '-localWorkers', '2',
+      '-compileReport',
+      '-extra', extraDir,
+  ]
+
+  maxHeapSize = '512M'
 }
 
 war {
-    dependsOn compileGwt
-    from gwtDir
+  dependsOn compileGwt
+  from gwtDir
+  destinationDirectory = new File(rootProject.getBuildDir(), "downloads")
+  archiveFileName = "thredds##${project.getVersion()}.war"
+}
+
+jar {
+  archiveClassifier = 'classes'
+}
+
+configurations.all {
+  // STAX is already included in Java 1.6+; no need for a third-party dependency.
+  /*
+    ./gradlew -q tds:dependencyInsight --configuration runtime --dependency stax-api
+    stax:stax-api:1.0.1
+    +--- org.apache.xmlbeans:xmlbeans:2.6.0
+    |    ...
+    \--- org.codehaus.jettison:jettison:1.3.7
+         \--- net.openhft:chronicle-map:2.4.15
+              ...
+   */
+  exclude group: 'stax', module: 'stax-api'
+  exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+  exclude group: 'net.openhft', module: 'chronicle-analytics'
+}
+
+////////////////////////////////////// Integration Tests //////////////////////////////////////
+
+import org.akhikhl.gretty.AppBeforeIntegrationTestTask
+import org.akhikhl.gretty.AppAfterIntegrationTestTask
+
+import java.nio.file.Paths
+
+gretty {
+  httpPort = 8081
+  contextPath = '/thredds'
+  jvmArgs = ['--illegal-access=permit', '--add-exports', 'java.base/jdk.internal.ref=ALL-UNNAMED']
+}
+
+def testInfomation = [[name: 'freshInstallTest',
+                 contentDir: file("$buildDir/tdsFreshContentDir"),
+                 description: description = 'Runs tests on a fresh installation of TDS (no existing catalog.xml).'],
+                [name: 'integrationTests',
+                 contentDir: file("$projectDir/src/test/content"),
+                 description: description = 'Runs tds integration tests.']]
+
+def previousTestTask = test
+def previousTestTaskFinalizer = null
+
+testInfomation.forEach { testInfo ->
+  sourceSets.create(testInfo.name) {
+    groovy.srcDir file("src/${testInfo.name}/groovy")
+    resources.srcDir file("src/${testInfo.name}/resources")
+
+    // Need 'sourceSets.test.output' because we use TestOnLocalServer in our test.
+    compileClasspath += sourceSets.test.output + configurations.testCompile
+    runtimeClasspath += output + sourceSets.test.output + configurations.testRuntime
+  }
+
+  def thisTestTask = tasks.create("${testInfo.name}", Test) {
+    group = 'verification'
+    description  testInfo.description as String
+    testClassesDirs = sourceSets.getByName("${testInfo.name}").output
+    classpath = sourceSets."${testInfo.name}".runtimeClasspath
+    mustRunAfter previousTestTask
+
+    // Use built-in Xalan XSLT instead of Saxon-HE.
+    // This works around an error we were seeing in org.xmlunit.builder.DiffBuilder.build():
+    //    java.lang.ClassCastException: net.sf.saxon.value.ObjectValue cannot be cast to net.sf.saxon.om.NodeInfo
+    //        ...
+    //        at thredds.tds.FreshTdsInstallSpec.TDS returns expected client catalog(FreshTdsInstallSpec.groovy:58)
+    // See buildSrc/build.gradle for another example of working around JAXP weirdness.
+    systemProperty TransformerFactory.name,  // See javax.xml.transform.TransformerFactory.newInstance().
+        'com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl'
+
+    // Replace the system property that was propagated from the Gradle process in any/testing.gradle.
+    systemProperty 'tds.content.root.path',testInfo.contentDir.absolutePath
+  }
+
+  task ("before${testInfo.name.capitalize()}", type: AppBeforeIntegrationTestTask, group: 'gretty') {
+    dependsOn assemble
+    description = "Starts server before ${testInfo.name}."
+    inplace = false
+    integrationTestTask thisTestTask.getName()
+    debug = false  // Start the embedded sever in debug mode.
+    // for integration tests that rely on gretty, make sure the embedded server is stopped before
+    // moving on to next test set.
+    if (previousTestTaskFinalizer != null) {
+      mustRunAfter previousTestTaskFinalizer
+    }
+    prepareServerConfig {
+      // The embedded TDS that this task launches will have a non-existent content root directory.
+      systemProperty 'tds.content.root.path', testInfo.contentDir.absolutePath
+    }
+    doFirst {
+      if(testInfo.name == "freshInstallTest") {
+        assert testInfo.contentDir.deleteDir(): "Couldn't delete ${testInfo.contentDir}."
+      }
+    }
+  }
+
+  previousTestTaskFinalizer = tasks.create("after${testInfo.name.capitalize()}", AppAfterIntegrationTestTask) {
+    group = "gretty"
+    description = "Stops server after ${testInfo.name}."
+    integrationTestTask thisTestTask.getName()
+  }
+
+  check.dependsOn thisTestTask
+  previousTestTask = thisTestTask
 }

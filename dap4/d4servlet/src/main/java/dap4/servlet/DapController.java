@@ -137,18 +137,10 @@ abstract public class DapController extends HttpServlet {
 
   //////////////////////////////////////////////////////////
 
-  public void init() throws ServletException {
+  public void init() {
     org.slf4j.Logger logServerStartup = org.slf4j.LoggerFactory.getLogger("serverStartup");
     logServerStartup.info(getClass().getName() + " initialization start");
-    try {
-      System.setProperty("file.encoding", "UTF-8");
-      Field charset = Charset.class.getDeclaredField("defaultCharset");
-      charset.setAccessible(true);
-      charset.set(null, null);
-      initialize();
-    } catch (Exception e) {
-      throw new ServletException(e);
-    }
+    initialize();
   }
 
   /**
@@ -384,12 +376,12 @@ abstract public class DapController extends HttpServlet {
       case XML:
       case HTML:
         throw new IOException("Unsupported return format: " + drq.getFormat());
-        /*
-         * sw = new StringWriter();
-         * DAPPrint dp = new DAPPrint(sw);
-         * dp.print(dsp.getDataset(), ce);
-         * break;
-         */
+      /*
+       * sw = new StringWriter();
+       * DAPPrint dp = new DAPPrint(sw);
+       * dp.print(dsp.getDataset(), ce);
+       * break;
+       */
       case NONE:
       default:
         DapSerializer writer = new DapSerializer(dsp, ce, cw, order, drq.getChecksumMode());

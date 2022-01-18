@@ -49,6 +49,8 @@ tds/src/test/content/thredds/cache
 tds/src/test/content/thredds/state
 tds/src/test/content/thredds/notebooks/
 tds/src/test/content/thredds/templates/
+tds/src/test/content/README.txt
+tds/src/test/content/thredds/README.txt
 
 # OS generated files 
 .DS_Store*
@@ -57,8 +59,6 @@ ehthumbs.db
 # DO NOT DELETE THEM. They are actually carraige returns ('\r'), and are part of the pattern.
 # See https://github.com/github/gitignore/pull/183
 Icon
-
-
 Thumbs.db
 *.swp
 *.*~
@@ -70,3 +70,6 @@ thredds.tgz
 
 # ignore shade plugin generated dependency-reduced-pom for ncIdv
 ncIdv/dependency-reduced-pom.xml
+
+# dependency check NVD files
+project-files/owasp-dependency-check/nvd

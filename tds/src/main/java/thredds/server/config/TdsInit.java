@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1998-2018 John Caron and University Corporation for Atmospheric Research/Unidata
+ * Copyright (c) 1998-2021 John Caron and University Corporation for Atmospheric Research/Unidata
  * See LICENSE for license information.
  */
 
@@ -20,6 +20,7 @@ import thredds.core.ConfigCatalogInitialization;
 import thredds.core.DatasetManager;
 import thredds.core.StandardService;
 import thredds.featurecollection.CollectionUpdater;
+import thredds.featurecollection.cache.GridInventoryCacheChronicle;
 import thredds.featurecollection.InvDatasetFeatureCollection;
 import thredds.server.catalog.ConfigCatalogCache;
 import thredds.server.catalog.DatasetScan;
@@ -45,11 +46,15 @@ import ucar.util.prefs.PreferencesExt;
 import ucar.util.prefs.XMLStore;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Calendar;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
+import uk.ac.rdg.resc.edal.util.GISUtils;
+import uk.ac.rdg.resc.edal.util.GISUtils.EpsgDatabasePath;
 
 /**
  * A Singleton class to initialize and shutdown the CDM/TDS
@@ -142,6 +147,10 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
           if (readMode == null)
             readMode = ConfigCatalogInitialization.ReadMode.always;
           configCatalogInitializer.init(readMode, (PreferencesExt) mainPrefs.node("configCatalog"));
+
+          // set epsg database location for edal-java (comes from apache-sis)
+          EpsgDatabasePath.DB_PATH =
+              (new File(tdsContext.getThreddsDirectory(), "/cache/edal-java/epsg/").toURI().toString());
           startupLog.info("TdsInit complete");
         }
       }
@@ -216,17 +225,6 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
     // initialize the tds configuration beans
     tdsConfigMapper.init(tdsContext);
 
-    // use new builders in netCDF-Java
-    useBuilders = ThreddsConfig.getBoolean("Experimental.useNetcdfJavaBuilders", false);
-
-    // if useBuilders is false, look at the Java system properties to see if there is a special flag set, used
-    // for testing only.
-    if (!useBuilders) {
-      useBuilders = Boolean.getBoolean("thredds.test.experimental.useNetcdfJavaBuilders");
-    }
-
-    datasetManager.setUseNetcdfJavaBuilders(useBuilders);
-
     // prefer cdmRemote when available
     DataFactory.setPreferCdm(true);
     // netcdf-3 files can only grow, not have metadata changes
@@ -265,7 +263,6 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
 
     allowedServices.finish(); // finish when we know everything is wired
     InvDatasetFeatureCollection.setAllowedServices(allowedServices);
-    InvDatasetFeatureCollection.setUseNetcdfJavaBuilders(useBuilders);
     DatasetScan.setSpecialServices(allowedServices.getStandardService(StandardService.resolver),
         allowedServices.getStandardService(StandardService.httpServer));
     DatasetScan.setAllowedServices(allowedServices);
@@ -308,6 +305,7 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
     // how to choose the typical dataset ?
     String typicalDataset = ThreddsConfig.get("Aggregation.typicalDataset", "penultimate");
     Aggregation.setTypicalDatasetMode(typicalDataset);
+    ucar.nc2.internal.ncml.Aggregation.setTypicalDatasetMode(typicalDataset);
     startupLog.info("TdsInit: Aggregation.setTypicalDatasetMode= " + typicalDataset);
 
     ////////////////////////////////////////////////////////////////
@@ -335,10 +333,25 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
         new File(tdsContext.getThreddsDirectory().getPath(), "/cache/agg/").getPath());
     scourSecs = ThreddsConfig.getSeconds("AggregationCache.scour", 24 * 60 * 60);
     maxAgeSecs = ThreddsConfig.getSeconds("AggregationCache.maxAge", 90 * 24 * 60 * 60);
+
+    // non-builder API
     DiskCache2 aggCache = new DiskCache2(dir, false, maxAgeSecs / 60, scourSecs / 60);
     String cachePathPolicy = ThreddsConfig.get("AggregationCache.cachePathPolicy", null);
     aggCache.setPolicy(cachePathPolicy);
     Aggregation.setPersistenceCache(aggCache);
+
+    // builder API
+    String dir2;
+    if (dir.endsWith("/") || dir.endsWith("\\\\")) {
+      String sep = dir.substring(dir.length());
+      dir2 = dir.substring(0, dir.length() - 1) + "New" + sep;
+    } else {
+      dir2 = dir + "New/";
+    }
+
+    DiskCache2 aggCache2 = new DiskCache2(dir2, false, maxAgeSecs / 60, scourSecs / 60);
+    aggCache2.setPolicy(cachePathPolicy);
+    ucar.nc2.internal.ncml.Aggregation.setPersistenceCache(aggCache2);
     startupLog.info("TdsInit: AggregationCache= " + dir + " scour = " + scourSecs + " maxAgeSecs = " + maxAgeSecs);
 
     /* 4.3.15: grib index file placement, using DiskCache2 */
@@ -359,22 +372,6 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
     // LOOK just create the diskCache here and send it in
     ncssDiskCache.init();
 
-    // LOOK is this used ??
-    // 4.3.16
-    /*
-     * dir = ThreddsConfig.get("CdmRemote.dir", new File(tdsContext.getContentDirectory().getPath(),
-     * "/cache/cdmr/").getPath());
-     * scourSecs = ThreddsConfig.getSeconds("CdmRemote.scour", 30 * 60);
-     * maxAgeSecs = ThreddsConfig.getSeconds("CdmRemote.maxAge", 60 * 60);
-     * DiskCache2 cdmrCache = new DiskCache2(dir, false, maxAgeSecs / 60, scourSecs / 60);
-     * CdmrFeatureController.setDiskCache(cdmrCache);
-     * startupLog.info("TdsInit: CdmRemote= " + dir + " scour = " + scourSecs + " maxAgeSecs = " + maxAgeSecs);
-     */
-
-    // turn back on for 4.6 needed for FMRC
-    // turned off for 4.5 not used ??
-    // new for 4.2 - feature collection caching
-    // in 4.4, change name to FeatureCollectionCache, but keep old for backwards compatibility
     String fcCache = ThreddsConfig.get("FeatureCollectionCache.dir", null);
     if (fcCache == null)
       fcCache = ThreddsConfig.get("FeatureCollection.dir", null);
@@ -382,13 +379,13 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
       fcCache = ThreddsConfig.get("FeatureCollection.cacheDirectory",
           tdsContext.getThreddsDirectory().getPath() + "/cache/collection/"); // cacheDirectory is old way
 
-    long maxSizeBytes = ThreddsConfig.getBytes("FeatureCollectionCache.maxSize", -1);
-    if (maxSizeBytes == -1)
-      maxSizeBytes = ThreddsConfig.getBytes("FeatureCollection.maxSize", 0);
-
-    int jvmPercent = ThreddsConfig.getInt("FeatureCollectionCache.jvmPercent", -1);
-    if (-1 == jvmPercent)
-      jvmPercent = ThreddsConfig.getInt("FeatureCollection.jvmPercent", 2);
+    Path fcCacheDir = Paths.get(fcCache);
+    try {
+      GridInventoryCacheChronicle.init(fcCacheDir);
+      startupLog.info("TdsInit: GridDatasetInv cache= {}", fcCache);
+    } catch (Exception e) {
+      startupLog.error("TdsInit: Failed initialize GridDatasetInv cache= {}", fcCache, e);
+    }
 
     ///////////////////////////////////////////////
     // Object caching
@@ -488,8 +485,8 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
       cdmDiskCacheTimer.cancel();
     FileCache.shutdown(); // this handles background threads for all instances of FileCache
     DiskCache2.exit(); // this handles background threads for all instances of DiskCache2
+    GridInventoryCacheChronicle.shutdown();
     executor.shutdownNow();
-
     /*
      * try {
      * catalogWatcher.close();
@@ -509,8 +506,20 @@ public class TdsInit implements ApplicationListener<ContextRefreshedEvent>, Disp
     datasetManager.setDatasetTracker(null); // closes the existing tracker
 
     collectionUpdater.shutdown();
+
+    // release epsg database setup by edal-java
+    // do this first, as there is a race condition somewhere outside the TDS that causes a scary warning in the logs
+    // about memory leaks.
+    GISUtils.releaseEpsgDatabase();
+
+    // give the epsg database time to clean-up
+    try {
+      Thread.sleep(1000);
+    } catch (InterruptedException e) {
+      startupLog.error("Failed to give epsg database extra time to clean-up. May get warning about a memory leak.");
+    }
+
     startupLog.info("TdsInit shutdown");
     MDC.clear();
   }
-
 }

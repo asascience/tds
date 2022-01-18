@@ -1,12 +1,21 @@
 /*
- * Copyright (c) 1998-2018 John Caron and University Corporation for Atmospheric Research/Unidata
+ * Copyright (c) 1998-2021 John Caron and University Corporation for Atmospheric Research/Unidata
  * See LICENSE for license information.
  */
 
 package thredds.server.config;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import thredds.server.wms.TdsEnhancedVariableMetadata;
+import thredds.server.wms.ThreddsWmsCatalogue;
+import thredds.server.wms.config.WmsDetailedConfig;
+import uk.ac.rdg.resc.edal.graphics.utils.ColourPalette;
 
 /**
  * Centralize the mapping of threddsConfig.xml configuration settings to the data objects used by
@@ -28,9 +37,9 @@ class TdsConfigMapper {
   @Autowired
   private WmsConfigBean wmsConfig;
   @Autowired
-  private CorsConfigBean corsConfig;
-  @Autowired
   private TdsUpdateConfigBean tdsUpdateConfig;
+
+  private static final Logger startupLog = org.slf4j.LoggerFactory.getLogger("serverStartup");
 
   // static so can be called from static enum classes
   private static String getValueFromThreddsConfig(String key, String alternateKey, String defaultValue) {
@@ -43,23 +52,20 @@ class TdsConfigMapper {
   }
 
   enum ServerInfoMappings {
-    SERVER_NAME("serverInformation.name", "htmlSetup.installName", "Initial TDS Installation"), SERVER_LOGO_URL(
-        "serverInformation.logoUrl", "htmlSetup.installLogoUrl", "threddsIcon.png"), SERVER_LOGO_ALT_TEXT(
-            "serverInformation.logoAltText", "htmlSetup.installLogoAlt", "Initial TDS Installation"), SERVER_ABSTRACT(
-                "serverInformation.abstract", null, "Scientific Data"), SERVER_KEYWORDS("serverInformation.keywords",
-                    null, "meteorology, atmosphere, climate, ocean, earth science"), SERVER_CONTACT_NAME(
-                        "serverInformation.contact.name", null,
-                        ""), SERVER_CONTACT_ORGANIZATION("serverInformation.contact.organization", null,
-                            ""), SERVER_CONTACT_EMAIL("serverInformation.contact.email", null,
-                                ""), SERVER_CONTACT_PHONE("serverInformation.contact.phone", null,
-                                    ""), SERVER_HOST_INSTITUTION_NAME("serverInformation.hostInstitution.name",
-                                        "htmlSetup.hostInstName", ""), SERVER_HOST_INSTITUTION_WEBSITE(
-                                            "serverInformation.hostInstitution.webSite", "htmlSetup.hostInstUrl",
-                                            ""), SERVER_HOST_INSTITUTION_LOGO_URL(
-                                                "serverInformation.hostInstitution.logoUrl",
-                                                "htmlSetup.hostInstLogoUrl", ""), SERVER_HOST_INSTITUTION_LOGO_ALT_TEXT(
-                                                    "serverInformation.hostInstitution.logoAltText",
-                                                    "htmlSetup.hostInstLogoAlt", "");
+    SERVER_NAME("serverInformation.name", "htmlSetup.installName", "Initial TDS Installation"),
+    SERVER_LOGO_URL("serverInformation.logoUrl", "htmlSetup.installLogoUrl", "threddsIcon.png"),
+    SERVER_LOGO_ALT_TEXT("serverInformation.logoAltText", "htmlSetup.installLogoAlt", "Initial TDS Installation"),
+    SERVER_ABSTRACT("serverInformation.abstract", null, "Scientific Data"),
+    SERVER_KEYWORDS("serverInformation.keywords", null, "meteorology, atmosphere, climate, ocean, earth science"),
+    SERVER_CONTACT_NAME("serverInformation.contact.name", null, ""),
+    SERVER_CONTACT_ORGANIZATION("serverInformation.contact.organization", null, ""),
+    SERVER_CONTACT_EMAIL("serverInformation.contact.email", null, ""),
+    SERVER_CONTACT_PHONE("serverInformation.contact.phone", null, ""),
+    SERVER_HOST_INSTITUTION_NAME("serverInformation.hostInstitution.name", "htmlSetup.hostInstName", ""),
+    SERVER_HOST_INSTITUTION_WEBSITE("serverInformation.hostInstitution.webSite", "htmlSetup.hostInstUrl", ""),
+    SERVER_HOST_INSTITUTION_LOGO_URL("serverInformation.hostInstitution.logoUrl", "htmlSetup.hostInstLogoUrl", ""),
+    SERVER_HOST_INSTITUTION_LOGO_ALT_TEXT("serverInformation.hostInstitution.logoAltText", "htmlSetup.hostInstLogoAlt",
+        "");
 
     private String key;
     private String alternateKey; // deprecated
@@ -94,19 +100,26 @@ class TdsConfigMapper {
       info.setHostInstitutionWebSite(SERVER_HOST_INSTITUTION_WEBSITE.getValueFromThreddsConfig());
       info.setHostInstitutionLogoUrl(SERVER_HOST_INSTITUTION_LOGO_URL.getValueFromThreddsConfig());
       info.setHostInstitutionLogoAltText(SERVER_HOST_INSTITUTION_LOGO_ALT_TEXT.getValueFromThreddsConfig());
+      // make the server info available to the ThreddsWmsCatalogue class, which handles exposing server contact info
+      // via the wms service.
+      ThreddsWmsCatalogue.setTdsServerInfo(info);
     }
   }
 
 
   enum HtmlConfigMappings {
-    HTML_STANDARD_CSS_URL("htmlSetup.standardCssUrl", null, ""), HTML_CATALOG_CSS_URL("htmlSetup.catalogCssUrl", null,
-        ""), HTML_DATASET_CSS_URL("htmlSetup.datasetCssUrl", null, ""), HTML_OPENDAP_CSS_URL("htmlSetup.openDapCssUrl",
-            null, "tdsDap.css"), GOOGLE_TRACKING_CODE("htmlSetup.googleTrackingCode", null, ""),
+    HTML_STANDARD_CSS_URL("htmlSetup.standardCssUrl", null, ""),
+    HTML_CATALOG_CSS_URL("htmlSetup.catalogCssUrl", null, ""),
+    HTML_DATASET_CSS_URL("htmlSetup.datasetCssUrl", null, ""),
+    HTML_OPENDAP_CSS_URL("htmlSetup.openDapCssUrl", null, "tdsDap.css"),
+    GOOGLE_TRACKING_CODE("htmlSetup.googleTrackingCode", null, ""),
 
-    HTML_FOLDER_ICON_URL("htmlSetup.folderIconUrl", null, "folder.gif"), HTML_FOLDER_ICON_ALT("htmlSetup.folderIconAlt",
-        null, "Folder"), HTML_DATASET_ICON_URL("htmlSetup.datasetIconUrl", null, ""), HTML_DATASET_ICON_ALT(
-            "htmlSetup.datasetIconAlt", null, ""), HTML_USE_REMOTE_CAT_SERVICE("htmlSetup.useRemoteCatalogService",
-                null, "true"), HTML_GENERATE_DATASET_JSON_LD("htmlSetup.generateDatasetJsonLD", null, "false");
+    HTML_FOLDER_ICON_URL("htmlSetup.folderIconUrl", null, "folder.gif"),
+    HTML_FOLDER_ICON_ALT("htmlSetup.folderIconAlt", null, "Folder"),
+    HTML_DATASET_ICON_URL("htmlSetup.datasetIconUrl", null, ""),
+    HTML_DATASET_ICON_ALT("htmlSetup.datasetIconAlt", null, ""),
+    HTML_USE_REMOTE_CAT_SERVICE("htmlSetup.useRemoteCatalogService", null, "true"),
+    HTML_GENERATE_DATASET_JSON_LD("htmlSetup.generateDatasetJsonLD", null, "false");
 
     private String key;
     private String alternateKey;
@@ -157,9 +170,12 @@ class TdsConfigMapper {
   }
 
   enum WmsConfigMappings {
-    WMS_ALLOW("WMS.allow", null, "false"), WMS_ALLOW_REMOTE("WMS.allowRemote", null, "false"), WMS_PALETTE_LOCATION_DIR(
-        "WMS.paletteLocationDir", null, null), WMS_MAXIMUM_IMAGE_WIDTH("WMS.maxImageWidth", null,
-            "2048"), WMS_MAXIMUM_IMAGE_HEIGHT("WMS.maxImageHeight", null, "2048");
+    WMS_ALLOW("WMS.allow", null, "true"),
+    WMS_ALLOW_REMOTE("WMS.allowRemote", null, "false"),
+    WMS_PALETTE_LOCATION_DIR("WMS.paletteLocationDir", null, null),
+    WMS_MAXIMUM_IMAGE_WIDTH("WMS.maxImageWidth", null, "2048"),
+    WMS_MAXIMUM_IMAGE_HEIGHT("WMS.maxImageHeight", null, "2048"),
+    WMS_CONFIG_FILE("WMS.configFile", null, null);
 
     private String key;
     private String alternateKey;
@@ -182,10 +198,48 @@ class TdsConfigMapper {
       return TdsConfigMapper.getValueFromThreddsConfig(this.key, this.alternateKey, this.defaultValue);
     }
 
-    static void load(WmsConfigBean wmsConfig) {
+    static void load(WmsConfigBean wmsConfig, TdsContext tdsContext) {
+      final String defaultPaletteLocation = tdsContext.getThreddsDirectory() + "/wmsPalettes";
+      final String defaultWmsConfigFile = tdsContext.getThreddsDirectory() + "/wmsConfig.xml";
+
       wmsConfig.setAllow(Boolean.parseBoolean(WMS_ALLOW.getValueFromThreddsConfig()));
       wmsConfig.setAllowRemote(Boolean.parseBoolean(WMS_ALLOW_REMOTE.getValueFromThreddsConfig()));
-      wmsConfig.setPaletteLocationDir(WMS_PALETTE_LOCATION_DIR.getValueFromThreddsConfig());
+
+      String paletteLocation = WMS_PALETTE_LOCATION_DIR.getValueFromThreddsConfig();
+      if (paletteLocation == null)
+        paletteLocation = defaultPaletteLocation;
+      wmsConfig.setPaletteLocationDir(paletteLocation);
+      try {
+        ColourPalette.addPaletteDirectory(new File(paletteLocation));
+      } catch (FileNotFoundException e) {
+        // If there is an error adding a custom palette, it is logged in the server startup log by edal-java.
+        // If there is an error with the directory itself, it will throw a FileNotFoundException.
+        // However, let's skip logging if the palette location is the default location, since an admin might not have
+        // created a custom palette directory.
+        if (!paletteLocation.equals(defaultPaletteLocation)) {
+          startupLog.warn("Could not find custom palette directory {}", paletteLocation, e);
+        }
+      }
+
+      String wmsConfigFile = WMS_CONFIG_FILE.getValueFromThreddsConfig();
+      if (wmsConfigFile == null)
+        wmsConfigFile = defaultWmsConfigFile;
+
+      WmsDetailedConfig wdc = WmsDetailedConfig.fromLocation(wmsConfigFile);
+      if (wdc == null) {
+        String defaultWmsConfig = "/WEB-INF/altContent/startup/wmsConfig.xml";
+        try (InputStream in = tdsContext.getServletContext().getResourceAsStream(defaultWmsConfig)) {
+          wdc = WmsDetailedConfig.loadFromStream(in);
+        } catch (IOException e) {
+          startupLog.error("Cannot read wmsConfig.xml from TDS war file:");
+          startupLog.error(e.getMessage());
+          startupLog.error("Failed to configure WMS server. Disabling the service.");
+          wmsConfig.setAllow(false);
+          wmsConfig.setAllowRemote(false);
+        }
+      }
+
+      wmsConfig.setWmsDetailedConfig(wdc);
 
       try {
         wmsConfig.setMaxImageWidth(Integer.parseInt(WMS_MAXIMUM_IMAGE_WIDTH.getValueFromThreddsConfig()));
@@ -193,51 +247,17 @@ class TdsConfigMapper {
         // If the given maxImageWidth value is not a number, try the default value.
         wmsConfig.setMaxImageWidth(Integer.parseInt(WMS_MAXIMUM_IMAGE_WIDTH.getDefaultValue()));
       }
+
       try {
         wmsConfig.setMaxImageHeight(Integer.parseInt(WMS_MAXIMUM_IMAGE_HEIGHT.getValueFromThreddsConfig()));
       } catch (NumberFormatException e) {
         // If the given maxImageHeight value is not a number, try the default value.
         wmsConfig.setMaxImageHeight(Integer.parseInt(WMS_MAXIMUM_IMAGE_HEIGHT.getDefaultValue()));
       }
-    }
-  }
-
-  enum CorsConfigMappings {
-    CORS_ENABLED("CORS.enabled", null, "false"), CORS_MAXIMUM_AGE("CORS.maxAge", null, "1728000"), CORS_ALLOWED_METHODS(
-        "CORS.allowedMethods", null, "GET"), CORS_ALLOWED_HEADERS("CORS.allowedHeaders", null,
-            "Authorization"), CORS_ALLOWED_ORIGIN("CORS.allowedOrigin", null, "*");
-
-    private String key;
-    private String alternateKey;
-    private String defaultValue;
-
-    CorsConfigMappings(String key, String alternateKey, String defaultValue) {
-      if (key == null)
-        throw new IllegalArgumentException("The key may not be null.");
-
-      this.key = key;
-      this.alternateKey = alternateKey;
-      this.defaultValue = defaultValue;
-    }
-
-    String getDefaultValue() {
-      return this.defaultValue;
-    }
-
-    String getValueFromThreddsConfig() {
-      return TdsConfigMapper.getValueFromThreddsConfig(this.key, this.alternateKey, this.defaultValue);
-    }
-
-    static void load(CorsConfigBean corsConfig) {
-      corsConfig.setEnabled(Boolean.parseBoolean(CORS_ENABLED.getValueFromThreddsConfig()));
-      try {
-        corsConfig.setMaxAge(Integer.parseInt(CORS_MAXIMUM_AGE.getValueFromThreddsConfig()));
-      } catch (NumberFormatException e) {
-        corsConfig.setMaxAge(Integer.parseInt(CORS_MAXIMUM_AGE.getDefaultValue()));
-      }
-      corsConfig.setAllowedHeaders(CORS_ALLOWED_HEADERS.getValueFromThreddsConfig());
-      corsConfig.setAllowedMethods(CORS_ALLOWED_METHODS.getValueFromThreddsConfig());
-      corsConfig.setAllowedOrigin(CORS_ALLOWED_ORIGIN.getValueFromThreddsConfig());
+      // make the wmsConfig available to the TdsEnhancedVariableMetadata and ThreddsWmsCatalogue classes,
+      // which handle the default WMS values as well as WMS values based on standard names or paths.
+      TdsEnhancedVariableMetadata.setWmsConfig(wmsConfig);
+      ThreddsWmsCatalogue.setWmsConfig(wmsConfig);
     }
   }
 
@@ -278,8 +298,7 @@ class TdsConfigMapper {
   void init(TdsContext tdsContext) {
     ServerInfoMappings.load(tdsServerInfo);
     HtmlConfigMappings.load(htmlConfig, tdsContext, tdsServerInfo);
-    WmsConfigMappings.load(wmsConfig);
-    CorsConfigMappings.load(corsConfig);
+    WmsConfigMappings.load(wmsConfig, tdsContext);
     TdsUpdateConfigMappings.load(tdsUpdateConfig);
   }
 
