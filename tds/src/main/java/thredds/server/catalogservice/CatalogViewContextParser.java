@@ -520,29 +520,28 @@ class DatasetContext {
       String datasetId = null;
 
       ServiceType stype = s.getType();
+      // Viewer services are listed as viewers
       if (stype != null) {
+        if (stype.getAccessType().equals(ServiceType.AccessType.DataViewer)) {
+          continue;
+        }
         switch (stype) {
           case OPENDAP:
           case DODS:
             urlString = urlString + ".html";
             break;
-
           case DAP4:
             urlString = urlString + ".dmr.xml";
             break;
-
           case WCS:
             queryString = "service=WCS&version=1.0.0&request=GetCapabilities";
             break;
-
           case WMS:
             queryString = "service=WMS&version=1.3.0&request=GetCapabilities";
             break;
-
           case WFS:
             queryString = "service=WFS&version=2.0.0&request=GetCapabilities";
             break;
-
           case NCML:
           case UDDC:
           case ISO:
@@ -554,30 +553,11 @@ class DatasetContext {
               queryString = "catalog=" + catalogUrl + "&dataset=" + datasetId;
             }
             break;
-
-          case JupyterNotebook:
-            datasetId = ds.getId();
-            catalogUrl = ds.getCatalogUrl();
-            if (catalogUrl.indexOf('#') > 0)
-              catalogUrl = catalogUrl.substring(0, catalogUrl.lastIndexOf('#'));
-            if (catalogUrl.indexOf(contentDir) > -1) {
-              catalogUrl = catalogUrl.substring(catalogUrl.indexOf(contentDir) + contentDir.length());
-            }
-            catalogUrl =
-                catalogUrl.substring(catalogUrl.indexOf("/catalog/") + ("/catalog/").length()).replace("html", "xml");
-            queryString = "catalog=" + catalogUrl;
-            urlString = urlString.substring(0, urlString.indexOf(s.getBase()) + s.getBase().length()) + datasetId;
-            break;
-
           case NetcdfSubset:
             urlString = urlString + "/dataset.html";
             break;
-
           case CdmRemote:
             queryString = "req=cdl";
-            break;
-          case CdmrFeature:
-            queryString = "req=form";
         }
       }
       Map<String, String> accessMap = new HashMap<>();
@@ -892,10 +872,11 @@ class DatasetContext {
       Map<String, String> viewerMap = new HashMap<>();
       viewerMap.put("title", viewer.getTitle());
       viewerMap.put("href", viewer.getUrl());
+      viewerMap.put("description", viewer.getDescription());
+      viewerMap.put("type", viewer.getType());
       this.viewerLinks.add(viewerMap);
     }
   }
-
 }
 
 

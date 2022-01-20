@@ -15,6 +15,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -31,6 +32,7 @@ import java.math.BigInteger;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import ucar.unidata.util.test.category.NotPullRequest;
 
 /**
  * TestServlet has multiple purposes.
@@ -43,7 +45,7 @@ import java.util.List;
 /*
  * Normally, we would like to use Spring applicationContext
  * and autowiring for this class.
- * This can work under, say, Jenkins or Travis, but
+ * This can work under, say, Jenkins or GitHub Actions, but
  * it fails under Intellij at the moment because of Mocking.
  * I have managed to get it to work partly, but currently it
  * crashes trying to initialize the ChronicleMap cache.
@@ -66,6 +68,8 @@ import java.util.List;
  * loader = MockTdsContextLoader.class)
  */
 
+// non-deterministic failure on GitHub Actions - no need to hold up PRs for now (and will still barf on Jenkins)
+@Category(NotPullRequest.class)
 public class TestServlet extends DapTestCommon {
   static final boolean USESPRING = false;
 

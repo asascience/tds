@@ -28,6 +28,7 @@
     <listener-class>org.apache.logging.log4j.web.Log4jServletContextListener</listener-class>
   </listener>
 
+
   <filter>
     <filter-name>log4jServletFilter</filter-name>
     <filter-class>org.apache.logging.log4j.web.Log4jServletFilter</filter-class>
@@ -99,6 +100,10 @@
     <servlet-name>wms</servlet-name>
     <url-pattern>/wms/*</url-pattern>
   </servlet-mapping>
+
+  <listener>
+    <listener-class>uk.ac.rdg.resc.edal.wms.WmsContextListener</listener-class>
+  </listener>
 
   <!-- end edal-wms servlet -->
 

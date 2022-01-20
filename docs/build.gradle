@@ -1,161 +1,190 @@
-buildscript {
-    repositories {
-        jcenter()
+plugins {
+  id 'base'
+  id 'edu.ucar.unidata.site.jekyll'
+}
+
+// disable tasks added by the jekyll plugin...we need custom tasks, one for each docset
+buildJekyllSite.enabled(false)
+serveJekyllSite.enabled(false)
+
+apply from: "${rootDir}/gradle/any/properties.gradle"
+apply from: "${projectDir}/helpers.gradle"
+
+import edu.ucar.build.publishing.tasks.PublishToRawRepoTask
+import edu.ucar.build.publishing.tasks.DeleteFromNexusTask
+import edu.ucar.unidata.site.jekyll.tasks.ServeTask
+
+////////////////////////
+// Jekyll Sites Build //
+////////////////////////
+
+final def docsets = ['adminguide', 'devguide', 'quickstart', 'userguide']
+final def rawRepoName = 'docs-tds'
+final def buildAllJekyllSitesTaskName = 'buildAllJekyllSites'
+
+// copy shared files
+def filesToCopy = copySpec {
+  from "${projectDir}/shared"
+  include '**/*.golden'
+  rename '(.*).golden', '$1'
+}
+
+def copySharedJekyllFilesTask = tasks.register('copySharedJekyllFiles', Copy) {
+  group = 'documentation-set'
+  into "${projectDir}"
+  docsets.each { docset ->
+    into("${docset}") {
+      with filesToCopy
     }
-    
-    dependencies {
-        classpath libraries["jruby-gradle-plugin"]
+  }
+}
+
+// clean up shared files files that were copied during the jekyll site build tasks
+clean {
+  def tree = fileTree("${projectDir}/shared")
+  tree.include('**/*.golden')
+  tree.forEach {
+    def relFileToDelete = projectDir.toPath().resolve('shared').relativize(it.toPath())
+    docsets.each { docset ->
+      def fileToDelete = file("${projectDir}/${docset}").toPath().resolve(relFileToDelete)
+      fileToDelete = fileToDelete.toString().replaceAll("\\.golden\$", "")
+      delete fileToDelete
     }
+  }
 }
 
-// Adds 'assemble', 'check', 'build', and 'clean' tasks.
-// See: https://docs.gradle.org/current/userguide/standard_plugins.html#sec:base_plugins
-apply plugin: 'base'
-
-//////////////////////////////////////////////// Jekyll ////////////////////////////////////////////////
-
-apply plugin: 'com.github.jruby-gradle.base'
-
-dependencies {
-    jrubyExec 'rubygems:jekyll:3.4.0'
-    // Without this, we get: LoadError: no such file to load -- bundler
-    jrubyExec 'rubygems:bundler:1.14.4'
+// aggregator task (aggregate individual doc set builds)
+tasks.register(buildAllJekyllSitesTaskName) {
+  group = 'Documentation'
+  description = 'Build all jekyll sites.'
 }
 
-ext {
-    userGuideSrcDir = file("src/public/userguide/")
-    userGuideDestDir = file("$buildDir/userguide/")
-    
-    commonFlags = [ '--source', userGuideSrcDir.absolutePath, '--destination', userGuideDestDir.absolutePath ]
+// setup build and publish tasks associated with each individual documentation set
+docsets.each { docset ->
+  def partialTaskName = makeUpperCamelCase(docset)
+  def buildTask = tasks.register("build${partialTaskName}", edu.ucar.unidata.site.jekyll.tasks.BuildTask) {
+    group 'documentation-set'
+    script = 'jekyll'
+    description "Build ${docset} jekyll site."
+    sourceDirectory.set(layout.projectDirectory.dir("${docset}/src/site"))
+    destinationDirectory.set(layout.buildDirectory.dir("site/${docset}/"))
+    dependsOn tasks.named('unpackGemJar'), copySharedJekyllFilesTask
+  }
+
+  tasks.register("serve${partialTaskName}", ServeTask) {
+    group 'documentation-set'
+    script = 'jekyll'
+    description "Serve $docset jekyll site."
+    sourceDirectory.set(layout.projectDirectory.dir("${docset}/src/site"))
+    destinationDirectory.set(layout.buildDirectory.dir("site/${docset}/"))
+    dependsOn tasks.named('unpackGemJar')
+  }
+
+  // register tasks with the aggregator build task
+  tasks.named(buildAllJekyllSitesTaskName).configure({dependsOn buildTask})
 }
 
-import com.github.jrubygradle.JRubyExec
+/////////////////////////////////////////////
+// Nexus Repository Publication Management //
+/////////////////////////////////////////////
 
-task buildUserGuide(type: JRubyExec) {
-    group = "Documentation"
-    description = 'Build user guide website.'
-    
-    inputs.files userGuideSrcDir
-    outputs.dir userGuideDestDir
-    
-    script "jekyll"
-    
-    scriptArgs "build"
-    scriptArgs commonFlags
-    
-    // Consider enabling this to help us determine when pages need to be pushed to Nexus.
-    // A copy of .jekyll-metadata could be stored in the repo and then compared to the local file.
-    // See https://jekyllrb.com/docs/configuration/#incremental-regeneration
-    // scriptArgs "--incremental"
+// versioned means published documentation url path will include explicit /major.minor/ versioning information
+// current means versioning information will be "meta" -  most of the time /current/, or if on the develop branch /dev/
+final def docVersionTypes = ['current', 'versioned']
+
+// create aggregation level publication/deletion tasks (versioned or current)
+// for all documentation
+docVersionTypes.forEach {docVersionType ->
+  tasks.register(getPublishAllTaskName('all', docVersionType)) {
+    group = 'Publishing'
+    description = "Publish all documentation (${docVersionType})."
+  }
+  tasks.register(getDeleteAllTaskName('all', docVersionType)) {
+    group = 'Publishing'
+    description = "Remove all ${docVersionType} docs on Nexus."
+  }
 }
 
-task serveUserGuide(type: JRubyExec) {
-    group = "Documentation"
-    description = 'Serve user guide website locally.'
-    
-    // This task starts a server; it is never considered UP-TO-DATE.
-    outputs.upToDateWhen { false }
-    
-    script "jekyll"
-    
-    scriptArgs "serve"
-    scriptArgs commonFlags
-    
+//
+// Publish Jekyll Docsets
+//
+// create aggregation level publication/deletion tasks (versioned or current)
+// for jekyll documentation
+docVersionTypes.forEach {docVersionType ->
+  tasks.register(getPublishAllTaskName('jekyll', docVersionType)) {
+    group = 'Publishing'
+    description = "Publish all ${docVersionType} Jekyll Sites to Nexus."
+  }
+
+  tasks.register(getDeleteAllTaskName('jekyll', docVersionType)) {
+    group = 'Publishing'
+    description = "Remove all ${docVersionType} Jekyll Sites from Nexus."
+  }
 }
 
-//////////////////////////////////////////////// Javadoc ////////////////////////////////////////////////
+docVersionTypes.each {docVersionType ->
+  tasks.named(getPublishAllTaskName('jekyll', docVersionType)).configure({dependsOn tasks.named(buildAllJekyllSitesTaskName)})
+}
 
-apply from: "$rootDir/gradle/any/javadoc.gradle"
+docsets.each { docset ->
+  docVersionTypes.each { docType ->
+    def nexusTaskName = makeNexusTaskName(docType, docset)
+    def nexusVersion = docType != 'current' ? "${project.docVersion}" : 'current'
+    def nexusPath = "${nexusVersion}/${docset}"
 
-/**
-evaluationDependsOn(":cdm")  // Evaluate ":cdm" first so that SourceSets will have been added to the Project.
-
-task buildJavadocCdm(type: Javadoc) 
-**/
-
-gradle.projectsEvaluated {  // Evaluate all projects first so that SourceSets will have been created for each.
-    task buildJavadocAll(type: Javadoc) {
-        description = "Generate Javadoc for all Java subprojects."
-        
-        title = "TDS Javadoc (not public) v${project.docVersion}"
-        destinationDir = file("$buildDir/javadocAll/")
-        
-        source publishedProjects.collect { project -> project.sourceSets.main.allJava }
-        classpath = files(publishedProjects.collect { project ->
-            [ project.sourceSets.main.compileClasspath, project.sourceSets.main.output ] })
+    def pubAsTask = tasks.register("publishAs${nexusTaskName}", PublishToRawRepoTask) {
+      description  "Publish ${docset} to Nexus under ${nexusPath}/."
+      group 'Publishing-docset'
+      dependsOn tasks.named("build${ -> makeUpperCamelCase(docset) }")
+      repoName = "${rawRepoName}"
+      publishSrc = file("${buildDir}/site/${docset}/")
+      destPath "${nexusPath}/"
     }
-    
-    tasks.build {
-        // Aggregates the individual "build*" tasks.
-        dependsOn buildUserGuide
+
+    def deleteTask = tasks.register("delete${nexusTaskName}", DeleteFromNexusTask) {
+      description "Remove $docset on Nexus under ${nexusPath}/*."
+      group 'Publishing-docset'
+      searchQueryParameters.repository = "${rawRepoName}"
+      searchQueryParameters.name = "${nexusPath}/*"
     }
+
+    // register tasks with the appropriate aggregator tasks
+    tasks.named(getPublishAllTaskName('jekyll', docType)).configure({dependsOn pubAsTask})
+    tasks.named(getDeleteAllTaskName('jekyll', docType)).configure({dependsOn deleteTask})
+  }
 }
 
-//////////////////////////////////////////////// Nexus ////////////////////////////////////////////////
+// create aggregation level publication/deletion tasks (versioned or current)
+// for all documentation (jekyll sites and javadocs)
+docVersionTypes.forEach { docVersionType ->
 
-apply from: "$rootDir/gradle/any/properties.gradle"  // For Nexus credential properties.
-
-import edu.ucar.build.publishing.PublishToRawRepoTask
-
-tasks.withType(PublishToRawRepoTask).all {  // Common PublishToRawRepoTask config.
-    group = "Documentation"
-    
-    host = "https://artifacts.unidata.ucar.edu/"
-    repoName = "tds-docs"
-    
-    onlyIf {
-        // Will be evaluated at task execution time, not during configuration.
-        // Fails the build if the specified properties haven't been provided.
-        username = getPropertyOrFailBuild NEXUS_USERNAME_KEY
-        password = getPropertyOrFailBuild NEXUS_PASSWORD_KEY
-        return true
-    }
+  tasks.named(getPublishAllTaskName('all', docVersionType)).configure {
+    dependsOn tasks.named(getPublishAllTaskName('jekyll', docVersionType))
+  }
+  tasks.named(getDeleteAllTaskName('all', docVersionType)).configure {
+    dependsOn tasks.named(getDeleteAllTaskName('jekyll', docVersionType))
+  }
 }
 
-task publishUserGuide(type: PublishToRawRepoTask, dependsOn: buildUserGuide) {
-    description = "Publish user guide to Nexus."
-
-    srcFile = userGuideDestDir
-    destPath = "tds/$project.docVersion/userguide/"
-}
-
-
+//
+// Common to all publish related tasks
+//
 gradle.projectsEvaluated {
-    // These tasks must be in a "projectsEvaluated" block because they depend on tasks that are also in a
-    // "projectsEvaluated" block.
-    
-    task publishJavadocAll(type: PublishToRawRepoTask, dependsOn: buildJavadocAll) {
-        description = "Publish Javadoc for all Java subprojects to Nexus."
-        
-        srcFile = tasks.buildJavadocAll.destinationDir
-        destPath = "tds/$project.docVersion/javadocAll/"
-    }
-    
-    // We're deliberately NOT naming this task "publish", because we don't want it running when we do a:
-    //     ./gradlew publish
-    // from the root directory. It simply takes too long.
-    task publishDocs(group: "Documentation") {
-        description = "Publish user guide and both Javadoc sets to Nexus."
-        
-        // Aggregates the individual "publish*" tasks.
-        dependsOn publishUserGuide
-    }
-}
-
-import edu.ucar.build.publishing.DeleteFromNexusTask
-
-// By default, this will perform a dry run, which simply prints the components that the query matched.
-// To actually delete those components, do:  ./gradlew :docs:deleteFromNexus --dryRun=false
-task deleteFromNexus(type: DeleteFromNexusTask) {
-    host = "https://artifacts.unidata.ucar.edu/"
-    searchQueryParameters.repository = 'tds-docs'
-    searchQueryParameters.group = "/tds/$project.docVersion/*"
-
-    onlyIf {
+  for (taskType in [PublishToRawRepoTask, DeleteFromNexusTask]) {
+    tasks.withType(taskType).all {
+      host = 'https://artifacts.unidata.ucar.edu/'
+      if (taskType == DeleteFromNexusTask && project.hasProperty('dryRun')) {
+        dryRun = project.property('dryRun')
+      }
+      onlyIf {
         // Will be evaluated at task execution time, not during configuration.
         // Fails the build if the specified properties haven't been provided.
         username = getPropertyOrFailBuild NEXUS_USERNAME_KEY
         password = getPropertyOrFailBuild NEXUS_PASSWORD_KEY
         return true
+      }
     }
+  }
 }
+
+build.dependsOn buildAllJekyllSites

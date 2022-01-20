@@ -1,27 +1,52 @@
-ext.title = "THREDDS Data Manager (TDM)"
+import java.nio.file.Paths
+
+ext.title = 'THREDDS Data Manager (TDM)'
 
 apply from: "$rootDir/gradle/any/dependencies.gradle"
-apply from: "$rootDir/gradle/any/java.gradle"
-// tdm has no tests
-apply from: "$rootDir/gradle/any/archiving.gradle"
-apply from: "$rootDir/gradle/any/publishing.gradle"
+
+// Because of the shadow jar (tdmFat.jar), we won't use java-published.gradle
+// for this subproject.
+apply from: "$rootDir/gradle/any/java-published.gradle"
+
+apply plugin: 'com.github.johnrengelman.shadow'
 
 dependencies {
-    compile libraries["httpservices"]
-    compile libraries["cdm-core"]
-    compile libraries["grib"]
+    implementation enforcedPlatform(project(':tds-platform'))
+
     compile project(':tdcommon')
+    compile 'edu.ucar:httpservices'
+    compile 'edu.ucar:cdm-core'
+    compile 'edu.ucar:grib'
 
-    compile libraries["httpclient"]
-    compile libraries["jdom2"]
-    compile libraries["spring-core"]
-    compile libraries["spring-context"]
-    compile libraries["protobuf-java"]
-    compile libraries["jcommander"]
-    compile libraries["guava"]
+    compile 'org.apache.httpcomponents:httpclient'
+    compile 'org.jdom:jdom2'
+    compile 'org.springframework:spring-beans'
+    compile 'org.springframework:spring-core'
+    compile 'org.springframework:spring-context'
+    compile 'com.google.protobuf:protobuf-java'
+    compile 'com.beust:jcommander'
+    compile 'com.google.guava:guava'
 
-    compile libraries["slf4j-api"]
-    runtime libraries["log4j-slf4j-impl"]
+    compile 'org.slf4j:slf4j-api'
+    runtime 'org.apache.logging.log4j:log4j-slf4j-impl'
 }
 
-jar.manifest.attributes 'Main-Class': 'thredds.tdm.Tdm'
+shadowJar {
+  baseName = 'tdmFat'
+  setArchiveBaseName('tdmFat')
+  classifier ''
+  setArchiveClassifier ''
+  doFirst {
+    manifest.attributes jar.manifest.attributes
+  }
+  manifest.attributes 'Main-Class': 'thredds.tdm.Tdm'
+  mergeServiceFiles()
+  append 'META-INF/spring.factories'
+  append 'META-INF/spring.handlers'
+  append 'META-INF/spring.schemas'
+  append 'META-INF/spring.tooling'
+  destinationDirectory = Paths.get(rootDir.absolutePath, "build", "downloads").toFile()
+  archiveFileName = "tdm-${project.getVersion()}.jar"
+}
+
+assemble.dependsOn shadowJar

@@ -124,7 +124,7 @@
       <appender-ref ref="fmrc"/>
     </logger>
 
-    <logger name="thredds.inventory.bdb.MetadataManager" level="info" additivity="false">
+    <logger name="thredds.featurecollection.cache.GridInventoryCacheChronicle" level="info" additivity="false">
       <appender-ref ref="fmrc"/>
     </logger>
 
@@ -168,6 +168,11 @@
 
     <logger name="thredds.server.metadata" level="warn" additivity="false">
       <appender-ref ref="threddsServlet"/>
+    </logger>
+
+    <!-- log issues related to loading custom color palettes -->
+    <logger name="uk.ac.rdg.resc.edal.graphics.utils.ColourPalette" level="warn" additivity="false">
+      <appender-ref ref="serverStartup"/>
     </logger>
 
     <!-- spring -->

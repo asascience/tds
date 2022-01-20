@@ -6,7 +6,6 @@
 package thredds.server.opendap;
 
 import java.nio.charset.StandardCharsets;
-import javax.annotation.PostConstruct;
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletRequest;
@@ -19,7 +18,10 @@ import opendap.dap.*;
 import opendap.dap.parsers.ParseException;
 import opendap.servers.*;
 import opendap.servlet.*;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -46,7 +48,7 @@ import ucar.nc2.util.EscapeStrings;
  */
 @Controller
 @RequestMapping("/dodsC")
-public class OpendapServlet extends AbstractServlet {
+public class OpendapServlet extends AbstractServlet implements InitializingBean {
 
   static public org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(OpendapServlet.class);
   static org.slf4j.Logger logServerStartup = org.slf4j.LoggerFactory.getLogger("serverStartup");
@@ -66,26 +68,46 @@ public class OpendapServlet extends AbstractServlet {
 
   private boolean debugSession = false;
 
-  @PostConstruct
-  public void init() throws javax.servlet.ServletException {
-    // super.init();
+  @Override
+  public void afterPropertiesSet() throws javax.servlet.ServletException {
+    // Nothing to set at this point in the startup process
+    // This is before TdsInit.onApplicationEvent is called
+  }
 
-    logServerStartup.info(getClass().getName() + " initialization start");
+  @EventListener
+  public void init(ContextRefreshedEvent event) {
+    // The context is refreshed three times.
+    // All three times, the event.getApplicationContext().getApplicationName() is /thredds
+    // However, the display name and ID are different:
+    // 1. Root WebApplicationContext
+    // org.springframework.web.context.WebApplicationContext:/thredds
+    // 2. org.springframework.web.context.support.GenericWebApplicationContext@6c14bf64
+    // org.springframework.web.context.support.GenericWebApplicationContext@6c14bf64
+    // 3. WebApplicationContext for namespace 'spring-servlet'
+    // org.springframework.web.context.WebApplicationContext:/thredds/spring
+    //
+    // Initializing will work on any one of these, but we only need one.
 
-    this.ascLimit = ThreddsConfig.getInt("Opendap.ascLimit", ascLimit); // LOOK how the hell can OpendapServlet call
-                                                                        // something in the tds module ??
-    this.binLimit = ThreddsConfig.getInt("Opendap.binLimit", binLimit);
+    if (event.getApplicationContext().getDisplayName().equals("Root WebApplicationContext")) {
+      // super.init();
 
-    this.odapVersionString = ThreddsConfig.get("Opendap.serverVersion", odapVersionString);
-    logServerStartup.info(getClass().getName() + " version= " + odapVersionString + " ascLimit = " + ascLimit
-        + " binLimit = " + binLimit);
+      logServerStartup.info(getClass().getName() + " initialization start");
 
-    if (tdsContext != null) // LOOK not set in mock testing enviro ?
-    {
-      setRootpath(tdsContext.getServletRootDirectory().getPath());
+      this.ascLimit = ThreddsConfig.getInt("Opendap.ascLimit", ascLimit); // LOOK how the hell can OpendapServlet call
+      // something in the tds module ??
+      this.binLimit = ThreddsConfig.getInt("Opendap.binLimit", binLimit);
+
+      this.odapVersionString = ThreddsConfig.get("Opendap.serverVersion", odapVersionString);
+      logServerStartup.info(getClass().getName() + " version= " + odapVersionString + " ascLimit = " + ascLimit
+          + " binLimit = " + binLimit);
+
+      if (tdsContext != null) // LOOK not set in mock testing enviro ?
+      {
+        setRootpath(tdsContext.getServletRootDirectory().getPath());
+      }
+
+      logServerStartup.info(getClass().getName() + " initialization done");
     }
-
-    logServerStartup.info(getClass().getName() + " initialization done");
   }
 
   public String getServerVersion() {

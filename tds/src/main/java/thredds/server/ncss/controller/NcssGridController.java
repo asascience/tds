@@ -4,6 +4,8 @@
  */
 package thredds.server.ncss.controller;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jdom2.Document;
 import org.jdom2.Element;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,20 +32,20 @@ import thredds.util.Constants;
 import thredds.util.ContentType;
 import thredds.util.TdsPathUtils;
 import ucar.ma2.InvalidRangeException;
-import ucar.nc2.NetcdfFileWriter;
 import ucar.nc2.ft.FeatureDatasetPoint;
 import ucar.nc2.ft2.coverage.*;
-import ucar.nc2.ft2.coverage.writer.CFGridCoverageWriter2;
+import ucar.nc2.ft2.coverage.writer.CFGridCoverageWriter;
 import ucar.nc2.ft2.coverage.writer.CoverageAsPoint;
 import ucar.nc2.ft2.coverage.writer.CoverageDatasetCapabilities;
 import ucar.nc2.util.IO;
-import ucar.nc2.util.Optional;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import ucar.nc2.write.NetcdfFileFormat;
+import ucar.nc2.write.NetcdfFormatWriter;
 
 /**
  * Handles NCSS Grid Requests
@@ -57,6 +59,11 @@ import java.util.*;
 public class NcssGridController extends AbstractNcssController {
   // Compression rate used to estimate the filesize of netcdf4 compressed files
   static private final short ESTIMATED_COMPRESION_RATE = 4;
+  // pattern for valid WKT lat lon point
+  // Two decimal digits seperated by whitespace, potentially starting and/or ending with
+  // a comma
+  private static final Pattern LATLON_WKT_PATTERN = Pattern.compile("[, ]?\\\\d*\\.\\\\d*\\s\\\\d*\\\\.\\\\d*,?");
+
 
   @Autowired
   private AllowedServices allowedServices;
@@ -100,8 +107,7 @@ public class NcssGridController extends AbstractNcssController {
       CoverageCollection gcd) throws IOException, NcssException, InvalidRangeException {
     // Supported formats are netcdf3 (default) and netcdf4 (if available)
     SupportedFormat sf = SupportedOperation.GRID_REQUEST.getSupportedFormat(params.getAccept());
-    NetcdfFileWriter.Version version =
-        (sf == SupportedFormat.NETCDF3) ? NetcdfFileWriter.Version.netcdf3 : NetcdfFileWriter.Version.netcdf4;
+    NetcdfFileFormat version = (sf == SupportedFormat.NETCDF3) ? NetcdfFileFormat.NETCDF3 : NetcdfFileFormat.NETCDF4;
 
     // all variables have to have the same vertical axis if a vertical coordinate was set. LOOK can we relax this ?
     if (params.getVertCoord() != null && !checkVarsHaveSameVertAxis(gcd, params)) {
@@ -113,7 +119,7 @@ public class NcssGridController extends AbstractNcssController {
     File netcdfResult = makeCFNetcdfFile(gcd, responseFile, params, version);
 
     // filename download attachment
-    String suffix = version.getSuffix();
+    String suffix = TdsPathUtils.getSuffix(version);
     int pos = datasetPath.lastIndexOf("/");
     String filename = (pos >= 0) ? datasetPath.substring(pos + 1) : datasetPath;
     if (!filename.endsWith(suffix)) {
@@ -137,39 +143,28 @@ public class NcssGridController extends AbstractNcssController {
   }
 
   private File makeCFNetcdfFile(CoverageCollection gcd, String responseFilename, NcssGridParamsBean params,
-      NetcdfFileWriter.Version version) throws InvalidRangeException, IOException {
+      NetcdfFileFormat version) throws InvalidRangeException, IOException {
     SubsetParams subset = params.makeSubset(gcd);
 
     // Test maxFileDownloadSize
     long maxFileDownloadSize = ThreddsConfig.getBytes("NetcdfSubsetService.maxFileDownloadSize", -1L);
-    if (maxFileDownloadSize > 0) {
-      Optional<Long> estimatedSizeo =
-          CFGridCoverageWriter2.getSizeOfOutput(gcd, params.getVar(), subset, params.isAddLatLon());
-      if (!estimatedSizeo.isPresent())
-        throw new InvalidRangeException("Request contains no data: " + estimatedSizeo.getErrorMessage());
-
-      long estimatedSize = estimatedSizeo.get();
-      if (version == NetcdfFileWriter.Version.netcdf4)
-        estimatedSize /= ESTIMATED_COMPRESION_RATE;
-
-      if (estimatedSize > maxFileDownloadSize)
-        throw new RequestTooLargeException(
-            "NCSS response too large = " + estimatedSize + " max = " + maxFileDownloadSize);
-    }
+    if (version == NetcdfFileFormat.NETCDF4)
+      maxFileDownloadSize *= ESTIMATED_COMPRESION_RATE;
 
     // write the file
-    NetcdfFileWriter writer = NetcdfFileWriter.createNew(version, responseFilename, null); // default chunking - let
-                                                                                           // user control at some point
+    // default chunking - let user control at some point
+    NetcdfFormatWriter.Builder writerb = NetcdfFormatWriter.builder().setLocation(responseFilename).setFormat(version);
+    CFGridCoverageWriter.Result result =
+        CFGridCoverageWriter.write(gcd, params.getVar(), subset, params.isAddLatLon(), writerb, maxFileDownloadSize);
 
-    Optional<Long> estimatedSizeo =
-        CFGridCoverageWriter2.write(gcd, params.getVar(), subset, params.isAddLatLon(), writer);
-    if (!estimatedSizeo.isPresent())
-      throw new InvalidRangeException("Request contains no data: " + estimatedSizeo.getErrorMessage());
+    if (!result.wasWritten()) {
+      throw new RequestTooLargeException(result.getErrorMessage());
+    }
 
     return new File(responseFilename);
   }
 
-  private String getResponseFileName(String requestPathInfo, NetcdfFileWriter.Version version) {
+  private String getResponseFileName(String requestPathInfo, NetcdfFileFormat version) {
     File ncFile = ncssDiskCache.getDiskCache().createUniqueFile("ncss-grid", ".nc");
 
     if (ncFile == null)
@@ -177,7 +172,6 @@ public class NcssGridController extends AbstractNcssController {
 
     return ncFile.getPath();
   }
-
 
   private void handleRequestGridAsPoint(HttpServletResponse res, NcssGridParamsBean params, String datasetPath,
       CoverageCollection gcd) throws Exception {
@@ -243,7 +237,15 @@ public class NcssGridController extends AbstractNcssController {
       Map<String, Object> model = new HashMap<>();
       model.put("gcd", gcd);
       model.put("datasetPath", datasetUrlPath);
-      model.put("horizExtentWKT", gcd.getHorizCoordSys().getLatLonBoundaryAsWKT(50, 100));
+      String horizontalExtentWKT = gcd.getHorizCoordSys().getLatLonBoundaryAsWKT(50, 100);
+      Matcher latLonWktMatcher = LATLON_WKT_PATTERN.matcher(horizontalExtentWKT);
+      if (latLonWktMatcher.groupCount() > 3) {
+        // TODO: clean up any potential NaN values
+        model.put("horizExtentWKT", horizontalExtentWKT);
+      } else {
+        model.put("horizExtentWKT", "POLYGON((-90 45, 90 45, 90 -45, -90 -45, -90 45))");
+      }
+
       model.put("accept", makeAcceptList(op));
 
       switch (op) {

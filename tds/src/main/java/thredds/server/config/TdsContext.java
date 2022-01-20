@@ -264,6 +264,20 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     ////////////////////////////////
 
     try {
+      File rootDirReadMe = new File(contentRootDir, "README.txt");
+      if (!rootDirReadMe.exists()) {
+        File defaultRootDirReadMeFile = new File(startupContentDirectory, "root_README.txt");
+        logServerStartup.info("TdsContext.init(): Copying root README file from {}.", defaultRootDirReadMeFile);
+        IO.copyFile(defaultRootDirReadMeFile, rootDirReadMe);
+      }
+
+      File threddsDirReadMe = new File(threddsDirectory, "README.txt");
+      if (!threddsDirReadMe.exists()) {
+        File defaultThreddsDirReadMeFile = new File(startupContentDirectory, "thredds_README.txt");
+        logServerStartup.info("TdsContext.init(): Copying thredds README file from {}.", defaultThreddsDirReadMeFile);
+        IO.copyFile(defaultThreddsDirReadMeFile, threddsDirReadMe);
+      }
+
       File catalogFile = new File(threddsDirectory, "catalog.xml");
       if (!catalogFile.exists()) {
         File defaultCatalogFile = new File(startupContentDirectory, "catalog.xml");
@@ -321,6 +335,7 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
       throw new IllegalStateException(message, e);
     }
 
+
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // logging
 
@@ -336,7 +351,7 @@ public final class TdsContext implements ServletContextAware, InitializingBean, 
     System.setProperty("tds.log.dir", loggingDirectory); // variable substitution
 
     logServerStartup.info("TdsContext version= " + getVersionInfo());
-    logServerStartup.info("TdsContext intialized logging in " + logDir.getPath());
+    logServerStartup.info("TdsContext initialized logging in " + logDir.getPath());
   }
 
   @Override
