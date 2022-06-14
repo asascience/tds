@@ -24,8 +24,6 @@ dependencies {
     api 'edu.ucar:cdm-core'
     api 'edu.ucar:httpservices'
     api 'edu.ucar:grib'
-
-    // tds - listed as compile, but most are likely runtime
     api 'edu.ucar:bufr'
     api 'edu.ucar:cdm-radial'
     api 'edu.ucar:cdm-misc'
@@ -35,7 +33,8 @@ dependencies {
     api 'edu.ucar:cdm-mcidas'
     api 'edu.ucar:waterml'
 
-    api 'com.google.protobuf:protobuf-java'
+    // api 'com.google.protobuf:protobuf-java'
+    api 'com.google.protobuf:protobuf-java:3.20.0'
     api 'net.java.dev.jna:jna'
     api 'com.google.guava:guava'
     api 'org.jdom:jdom2'
