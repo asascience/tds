@@ -47,7 +47,8 @@ public class GridInventoryCacheChronicle implements InventoryCacheProvider {
     }
     if (cache == null) {
       cache = ChronicleMapBuilder.of(String.class, byte[].class).name("GridDatasetInv")
-          .averageKey("/data/project/analysis/file.ext").averageValueSize(4096).entries(1000)
+          .averageKey("/data/project/analysis/file.ext").averageValueSize(4096).entries(1000000)
+          .maxBloatFactor(4.0)
           .createOrRecoverPersistedTo(dbFile.toFile());
     }
   }
